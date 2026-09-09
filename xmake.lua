@@ -20,7 +20,4 @@ target("MinecraftBedrockArchive")
 
     if has_config("path_type", "path-mod") then
         add_defines("USE_PATH_MOD")
-        set_targetdir("build/target/path-mod")
-    else
-        set_targetdir("build/target/default")
     end

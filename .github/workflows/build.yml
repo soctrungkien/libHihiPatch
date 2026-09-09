@@ -5,17 +5,6 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        target: [arm64-v8a]
-        variant: 
-          - name: default
-            path_type: default
-            folder: default
-          - name: path-mod
-            path_type: path-mod
-            folder: path-mod
-            
     runs-on: ubuntu-latest
     
     steps:
@@ -33,13 +22,29 @@ jobs:
       with:
         xmake-version: latest
         
-    - name: Configure and Build
+    - name: Configure and Build (default)
       run: |
-        xmake f -p android --ndk=${{ steps.setup-ndk.outputs.ndk-path }} -a ${{ matrix.target }} -m release --path_type=${{ matrix.variant.path_type }} -c --yes
+        xmake f -p android --ndk=${{ steps.setup-ndk.outputs.ndk-path }} -a arm64-v8a -m release --path_type=default -c --yes
         xmake
         
+        mkdir -p archive_folder/default
+        cp build/android/arm64-v8a/release/libMinecraftBedrockArchive.so archive_folder/default/libMinecraftBedrockArchive.so
+
+    - name: Configure and Build (path-mod)
+      run: |
+        xmake f -p android --ndk=${{ steps.setup-ndk.outputs.ndk-path }} -a arm64-v8a -m release --path_type=path-mod -c --yes
+        xmake
+        
+        mkdir -p archive_folder/path-mod
+        cp build/android/arm64-v8a/release/libMinecraftBedrockArchive.so archive_folder/path-mod/libMinecraftBedrockArchive.so
+
+    - name: Create Archive
+      run: |
+        cd archive_folder
+        zip -r ../MinecraftBedrockArchive.zip path-mod default
+
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: MinecraftBedrockArchive-${{ matrix.target }}-${{ matrix.variant.folder }}
-        path: build/target/${{ matrix.variant.path_type }}/libMinecraftBedrockArchive.so
+        name: MinecraftBedrockArchive
+        path: MinecraftBedrockArchive.zip
