@@ -38,13 +38,8 @@ jobs:
         mkdir -p archive_folder/path-mod
         cp build/android/arm64-v8a/release/libMinecraftBedrockArchive.so archive_folder/path-mod/libMinecraftBedrockArchive.so
 
-    - name: Create Archive
-      run: |
-        cd archive_folder
-        zip -r ../MinecraftBedrockArchive.zip path-mod default
-
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: MinecraftBedrockArchive
-        path: MinecraftBedrockArchive.zip
+        path: archive_folder/
