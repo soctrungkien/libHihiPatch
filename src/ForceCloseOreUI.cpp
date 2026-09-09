@@ -10,8 +10,8 @@
 #include <android/log.h>
 #include <dobby.h> 
 
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "ForceCloseOreUI", __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "ForceCloseOreUI", __VA_ARGS__)
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "MinecraftBedrockArchive", __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "MinecraftBedrockArchive", __VA_ARGS__)
 
 namespace fs = std::filesystem;
 
@@ -28,7 +28,7 @@ public:
     std::unordered_map<std::string, OreUIConfig> mConfigs;
 };
 
-// --- Dynamically detect package name without JNI ---
+#ifndef USE_PATH_MOD
 std::string getPackageName() {
     std::ifstream cmdline("/proc/self/cmdline");
     std::string pkgName;
@@ -37,26 +37,27 @@ std::string getPackageName() {
     }
     return "com.mojang.minecraftpe"; 
 }
+#endif
 
 std::string getConfigDir() {
+    std::string primary = "";
+#ifdef USE_PATH_MOD
+    primary = "/sdcard/games/MinecraftBedrockArchive/";
+#else
     std::string pkgName = getPackageName();
-    std::string primary = "/storage/emulated/0/Android/data/" + pkgName + "/files/mods/ForceCloseOreUI/";
+    primary = "/sdcard/Android/data/" + pkgName + "/files/mods/MinecraftBedrockArchive/";
+#endif
     std::error_code ec;
     fs::create_directories(primary, ec); 
     return primary;
 }
 
-nlohmann::json outputJson;
-std::string dirPath = "";
-std::string filePath = "";
-bool updated = false;
-
-void saveJson(const std::string &path, const nlohmann::json &j) {
+void saveJson(const std::string &path, const nlohmann::ordered_json &j) {
     std::error_code ec;
     fs::create_directories(fs::path(path).parent_path(), ec);
     FILE *f = std::fopen(path.c_str(), "w");
     if (!f) {
-        LOGE("Failed to open config file for writing.");
+        LOGE("Failed to open config file for writing: %s", path.c_str());
         return;
     }
     std::string jsonStr = j.dump(4);
@@ -64,53 +65,66 @@ void saveJson(const std::string &path, const nlohmann::json &j) {
     std::fclose(f);
 }
 
-// --- UPDATED FOR NEW MOJANG PARAMETERS (6 Args, OreUi is first) ---
+// OreUI hook
 void (*orig_OreUi_init)(OreUi&, void*, void*, void*, void*, void*);
 
 void hook_OreUi_init(OreUi &a1, void *a2, void *a3, void *a4, void *a5, void *a6) {
-    // 1. Let the game initialize the UI first so it populates the config map
     orig_OreUi_init(a1, a2, a3, a4, a5, a6);
 
-    // 2. Load our JSON and overwrite the game's values
-    dirPath = getConfigDir();
-    filePath = dirPath + "config.json";
+    std::string filePath = getConfigDir() + "ForceCloseOreUI.json";
+    nlohmann::ordered_json oreUiJson;
+    bool updated = false;
 
     if (fs::exists(filePath)) {
         std::ifstream inFile(filePath);
         if (inFile.is_open()) {
-            inFile >> outputJson;
+            inFile >> oreUiJson;
             inFile.close();
         }
     }
 
+    nlohmann::ordered_json newJson;
+    bool isEnabled = true;
+
+    if (oreUiJson.contains("Settings") && oreUiJson["Settings"].contains("enabled") && oreUiJson["Settings"]["enabled"].is_boolean()) {
+        isEnabled = oreUiJson["Settings"]["enabled"];
+    } else {
+        updated = true;
+    }
+    newJson["Settings"]["enabled"] = isEnabled;
+
     for (auto &data : a1.mConfigs) {
         bool value = false;
-        if (outputJson.contains(data.first) && outputJson[data.first].is_boolean()) {
-            value = outputJson[data.first];
+        
+        if (oreUiJson.contains("Screens") && oreUiJson["Screens"].contains(data.first) && oreUiJson["Screens"][data.first].is_boolean()) {
+            value = oreUiJson["Screens"][data.first];
         } else {
-            outputJson[data.first] = false;
             updated = true;
         }
-        data.second.mUnknown3 = [value]() { return value; };
-        data.second.mUnknown4 = [value]() { return value; };
+
+        newJson["Screens"][data.first] = value;
+
+        if (isEnabled) {
+            data.second.mUnknown3 = [value]() { return value; };
+            data.second.mUnknown4 = [value]() { return value; };
+        }
     }
 
     if (updated || !fs::exists(filePath)) {
-        saveJson(filePath, outputJson);
+        saveJson(filePath, newJson);
     }
 }
 
-// --- THE NEWEST ARM64 SIGNATURES ---
-const std::vector<const char*> OREUI_PATTERNS = {
-    // Newest Official Pattern from Author
-    "? ? ? D1 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 ? ? ? D5 F7 03 05 AA FB 03 03 2A",
-    
-    // Older 1.26.20 Fallback
-    "? ? ? D1 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 ? ? ? D5 FB 03 00 AA F5 03 07 AA",
-    
-    // Legacy Fallbacks
-    "? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 FD 03 00 91 ? ? ? D1 ? ? ? D5 FA 03 00 AA F5 03 07 AA"
-};
+// NoDisconnect hook
+bool (*orig_isInEDUMultiplayerSession)(void*);
+
+bool hook_isInEDUMultiplayerSession(void* _this) {
+    return true;
+}
+
+// Signatures
+const char* OREUI_PATTERN = "? ? ? D1 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 ? ? ? D5 FA 03 03 2A F7 03 02 2A ? ? ? F9 F4 03 01 AA";
+const char* EDU_MULTIPLAYER_PATTERN = "? ? ? D1 ? ? ? A9 ? ? ? F9 ? ? ? A9 ? ? ? 91 55 D0 3B D5 F3 03 00 AA ? ? ? F9 ? ? ? F8 ? ? ? F9 ? ? ? F9 ? ? ? 91 20 01 3F D6 ? ? ? F9 ? ? ? B4 ? ? ? 39";
 
 static uintptr_t ResolveSignature(const char* sig) {
     std::vector<int> pattern;
@@ -155,7 +169,7 @@ static uintptr_t ResolveSignature(const char* sig) {
 }
 
 void* InjectionThread(void* arg) {
-    LOGI("ForceCloseOreUI Turbo Thread started.");
+    LOGI("MinecraftBedrockArchive Turbo Thread started.");
 
     bool isLoaded = false;
     while (!isLoaded) {
@@ -175,30 +189,71 @@ void* InjectionThread(void* arg) {
 
     LOGI("libminecraftpe.so mapped! Scanning memory instantly...");
 
-    bool hookApplied = false;
+    std::string noDisconnectPath = getConfigDir() + "NoDisconnect.json";
+    nlohmann::ordered_json noDisconnectJson;
+    nlohmann::ordered_json newNdJson;
+    bool ndUpdated = false;
+    bool ndEnabled = true;
+
+    if (fs::exists(noDisconnectPath)) {
+        std::ifstream inFile(noDisconnectPath);
+        if (inFile.is_open()) {
+            inFile >> noDisconnectJson;
+            inFile.close();
+        }
+    }
+
+    if (noDisconnectJson.contains("Settings") && noDisconnectJson["Settings"].contains("enabled") && noDisconnectJson["Settings"]["enabled"].is_boolean()) {
+        ndEnabled = noDisconnectJson["Settings"]["enabled"];
+    } else {
+        ndUpdated = true;
+    }
+    
+    newNdJson["Settings"]["enabled"] = ndEnabled;
+
+    if (ndUpdated || !fs::exists(noDisconnectPath)) {
+        saveJson(noDisconnectPath, newNdJson);
+    }
+
+    bool oreUiHooked = false;
+    bool noDisconnectHooked = false;
+
     for (int attempts = 1; attempts <= 100; attempts++) {
-        for (const char* sig : OREUI_PATTERNS) {
-            uintptr_t addr = ResolveSignature(sig);
+        if (!oreUiHooked) {
+            uintptr_t addr = ResolveSignature(OREUI_PATTERN);
             if (addr != 0) {
                 LOGI("SUCCESS: Found OreUI signature! Applying DobbyHook...");
                 DobbyHook((void*)addr, (void*)hook_OreUi_init, (void**)&orig_OreUi_init);
-                hookApplied = true;
-                break;
+                oreUiHooked = true;
             }
         }
-        if (hookApplied) break;
+
+        if (!noDisconnectHooked) {
+            if (ndEnabled) {
+                uintptr_t addr = ResolveSignature(EDU_MULTIPLAYER_PATTERN);
+                if (addr != 0) {
+                    LOGI("SUCCESS: Found EduMultiplayer signature! Applying NoDisconnect DobbyHook...");
+                    DobbyHook((void*)addr, (void*)hook_isInEDUMultiplayerSession, (void**)&orig_isInEDUMultiplayerSession);
+                    noDisconnectHooked = true;
+                }
+            } else {
+                LOGI("NoDisconnect is disabled in config. Hook skipped.");
+                noDisconnectHooked = true; 
+            }
+        }
+
+        if (oreUiHooked && noDisconnectHooked) break;
         usleep(50000); 
     }
 
-    if (!hookApplied) {
-        LOGE("FATAL: Could not find OreUI pattern in memory.");
-    }
+    if (!oreUiHooked) LOGE("FATAL: Could not find OreUI pattern in memory.");
+    if (ndEnabled && !noDisconnectHooked) LOGE("FATAL: Could not find EduMultiplayer pattern in memory.");
 
     return nullptr;
 }
 
 __attribute__((constructor))
-void ForceCloseOreUI_Init() {
+void MinecraftBedrockArchive_Init() {
     pthread_t thread;
     pthread_create(&thread, nullptr, InjectionThread, nullptr);
     pthread_detach(thread);

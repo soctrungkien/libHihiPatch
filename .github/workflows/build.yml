@@ -1,4 +1,4 @@
-name: Build ForceCloseOreUI
+name: Build MinecraftBedrockArchive Variants
 
 on:
   push:
@@ -7,8 +7,15 @@ jobs:
   build:
     strategy:
       matrix:
-        target: 
-          - arm64-v8a
+        target: [arm64-v8a]
+        variant: 
+          - name: default
+            path_type: default
+            folder: default
+          - name: path-mod
+            path_type: path-mod
+            folder: path-mod
+            
     runs-on: ubuntu-latest
     
     steps:
@@ -19,7 +26,7 @@ jobs:
       uses: nttld/setup-ndk@v1
       id: setup-ndk
       with:
-        ndk-version: r26b # Recommended NDK version for stable Dobby builds
+        ndk-version: r26b
         
     - name: Setup Xmake
       uses: xmake-io/github-action-setup-xmake@v1
@@ -28,12 +35,11 @@ jobs:
         
     - name: Configure and Build
       run: |
-        # The --yes flag tells Xmake to automatically download and build Dobby without pausing
-        xmake f -p android --ndk=${{ steps.setup-ndk.outputs.ndk-path }} -a ${{ matrix.target }} -c --yes
+        xmake f -p android --ndk=${{ steps.setup-ndk.outputs.ndk-path }} -a ${{ matrix.target }} -m release --path_type=${{ matrix.variant.path_type }} -c --yes
         xmake
         
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ForceCloseOreUI-${{ matrix.target }}
-        path: build/android/${{ matrix.target }}/release/libForceCloseOreUI.so
+        name: MinecraftBedrockArchive-${{ matrix.target }}-${{ matrix.variant.folder }}
+        path: build/target/${{ matrix.variant.path_type }}/libMinecraftBedrockArchive.so

@@ -1,10 +1,10 @@
-# ForceCloseOreUI (Standalone / Snail Edition)
+# libMinecraftBedrockArchive
 
-A native C++ library for Minecraft Bedrock Edition designed to force-close the new OreUI interface. This is highly useful for bypassing UI-related crashes and identifying conflicting mods within your load order.
+A native C++ library for Minecraft Bedrock Edition Android designed to force-close the new OreUI interface and disable disconnecting when minimizing Minecraft.
 
-This specific fork has been **completely rewritten** to strip out all Levi Launcher and `libpreloader.so` dependencies. It is now a fully standalone `.so` library optimized for raw memory injection via the **Snail Method**.
+This repo has been **completely rewritten** to strip out all [libpreloader.so](https://github.com/LiteLDev/preloader-android) dependencies. It is now a fully standalone `.so` library optimized for raw memory injection via the **Snail Method**.
 
-## 🚀 Key Features
+## Key Features
 
 * **Snail Method Compatible:** Injects perfectly as a standalone library without triggering `UnsatisfiedLinkError` crashes.
 * **No Levi Environment Required:** Completely removes `libGlossHook.a` and the LiteLDev preloader dependencies.
@@ -12,21 +12,24 @@ This specific fork has been **completely rewritten** to strip out all Levi Launc
 * **Dobby Hook Integration:** Replaced static macro hooks with standard inline hooking via [Dobby](https://github.com/jmpews/Dobby).
 * **Hardcoded JNI Bypass:** Bypasses JavaVM lookups to ensure the config file saves correctly regardless of when the mod is injected.
 
-## 📂 Configuration
+## Configuration
 
-Once injected, the mod will automatically generate a configuration file at the following path:
-`/storage/emulated/0/Android/data/com.mojang.minecraftpe/files/mods/ForceCloseOreUI/config.json`
+Once injected, the mod will automatically generate configuration files at the following path:
+/storage/emulated/0/Android/data/PKG_NAME/files/mods/MinecraftBedrockArchive/
 
-You can edit this JSON file to toggle specific UI elements on or off.
+* **ForceCloseOreUI.json:** Controls OreUI screen toggles and the main module switch.
+* **NoDisconnect.json:** Controls the NoDisconnect feature switch.
 
-## 🛠️ Building the Project
+You can edit these JSON files to toggle specific options on or off.
+
+## Building the Project
 
 This project uses `xmake` and has a fully automated GitHub Actions CI/CD pipeline. 
 
 ### Automated Build (Recommended)
 You do not need to install the Android NDK locally. 
 1. Fork or push your code to GitHub.
-2. The GitHub Actions workflow will automatically download the Dobby dependencies, compile the code for `arm64-v8a`, and upload the standalone `libForceCloseOreUI.so` to the **Actions** tab.
+2. The GitHub Actions workflow will automatically download the Dobby dependencies, compile the code for `arm64-v8a`, and upload the standalone `libMinecraftBedrockArchive.so` to the Actions tab.
 
 ### Manual Local Build
 If you prefer to compile locally, ensure you have the Android NDK (r26b recommended) and `xmake` installed.
@@ -39,9 +42,8 @@ xmake f -p android --ndk=/path/to/your/android-ndk -a arm64-v8a -c --yes
 xmake
 ```
 
-## 📜 Credits & Copyright
+## Credits
 
-**© 2026 Pixelboypro** — *Standalone Snail Method Conversion, Levi Launcher/Preloader Dependency Removal, and Dobby Hook Integration.*
-
-* Original concept, core logic, and OreUI memory signatures created by **QYCottage / yinghuajimew / stivusik**. 
-
+* @Pixelboy79: Standalone Snail Method Conversion, Levi Launcher/Preloader Dependency Removal, and Dobby Hook Integration
+* @QYCottage, @yinghuajimew: Original concept and core logic
+* @Stivusik: More signatures!
