@@ -18,6 +18,6 @@ target("MinecraftBedrockArchive")
     add_packages("nlohmann_json", "dobby")
     add_syslinks("log")
 
-    if has_config("path_type", "path-mod") then
+    if get_config("path_type") == "path-mod" then
         add_defines("USE_PATH_MOD")
     end
