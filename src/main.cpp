@@ -122,9 +122,17 @@ bool hook_isInEDUMultiplayerSession(void* _this) {
     return true;
 }
 
+// Immortality hook
+bool (*orig_Immortality)(void*);
+
+bool hook_Immortality(void* _this) {
+    return false;
+}
+
 // Signatures
 const char* OREUI_PATTERN = "? ? ? D1 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 ? ? ? D5 FA 03 03 2A F7 03 02 2A ? ? ? F9 F4 03 01 AA";
 const char* EDU_MULTIPLAYER_PATTERN = "? ? ? D1 ? ? ? A9 ? ? ? F9 ? ? ? A9 ? ? ? 91 55 D0 3B D5 F3 03 00 AA ? ? ? F9 ? ? ? F8 ? ? ? F9 ? ? ? F9 ? ? ? 91 20 01 3F D6 ? ? ? F9 ? ? ? B4 ? ? ? 39";
+const char* IMMORTALITY_PATTERN = "E8 0F 19 FC FD 7B 01 A9 FC 6F 02 A9 FA 67 03 A9 F8 5F 04 A9 F6 57 05 A9";
 
 static uintptr_t ResolveSignature(const char* sig) {
     std::vector<int> pattern;
@@ -189,6 +197,7 @@ void* InjectionThread(void* arg) {
 
     LOGI("libminecraftpe.so mapped! Scanning memory instantly...");
 
+    // NoDisconnect config
     std::string noDisconnectPath = getConfigDir() + "NoDisconnect.json";
     nlohmann::ordered_json noDisconnectJson;
     nlohmann::ordered_json newNdJson;
@@ -215,8 +224,37 @@ void* InjectionThread(void* arg) {
         saveJson(noDisconnectPath, newNdJson);
     }
 
+    // Immortality config
+    std::string immortalityPath = getConfigDir() + "Immormality.json";
+    nlohmann::ordered_json immortalityJson;
+    nlohmann::ordered_json newImJson;
+    bool imUpdated = false;
+    bool imEnabled = false;
+
+    if (fs::exists(immortalityPath)) {
+        std::ifstream inFile(immortalityPath);
+        if (inFile.is_open()) {
+            inFile >> immortalityJson;
+            inFile.close();
+        }
+    }
+
+    if (immortalityJson.contains("Settings") && immortalityJson["Settings"].contains("enabled") && immortalityJson["Settings"]["enabled"].is_boolean()) {
+        imEnabled = immortalityJson["Settings"]["enabled"];
+    } else {
+        imUpdated = true;
+    }
+    
+    newImJson["Settings"]["enabled"] = imEnabled;
+
+    if (imUpdated || !fs::exists(immortalityPath)) {
+        saveJson(immortalityPath, newImJson);
+    }
+
+    // Hook application loop
     bool oreUiHooked = false;
     bool noDisconnectHooked = false;
+    bool immortalityHooked = false;
 
     for (int attempts = 1; attempts <= 100; attempts++) {
         if (!oreUiHooked) {
@@ -237,17 +275,30 @@ void* InjectionThread(void* arg) {
                     noDisconnectHooked = true;
                 }
             } else {
-                LOGI("NoDisconnect is disabled in config. Hook skipped.");
-                noDisconnectHooked = true; 
+                noDisconnectHooked = true;
             }
         }
 
-        if (oreUiHooked && noDisconnectHooked) break;
+        if (!immortalityHooked) {
+            if (imEnabled) {
+                uintptr_t addr = ResolveSignature(IMMORTALITY_PATTERN);
+                if (addr != 0) {
+                    LOGI("SUCCESS: Found Immortality signature! Applying DobbyHook...");
+                    DobbyHook((void*)addr, (void*)hook_Immortality, (void**)&orig_Immortality);
+                    immortalityHooked = true;
+                }
+            } else {
+                immortalityHooked = true;
+            }
+        }
+
+        if (oreUiHooked && noDisconnectHooked && immortalityHooked) break;
         usleep(50000); 
     }
 
     if (!oreUiHooked) LOGE("FATAL: Could not find OreUI pattern in memory.");
     if (ndEnabled && !noDisconnectHooked) LOGE("FATAL: Could not find EduMultiplayer pattern in memory.");
+    if (imEnabled && !immortalityHooked) LOGE("FATAL: Could not find Immortality pattern in memory.");
 
     return nullptr;
 }
