@@ -123,16 +123,16 @@ bool hook_isInEDUMultiplayerSession(void* _this) {
 }
 
 // Immortality hook
-bool (*orig_Immortality)(void*);
+void* (*orig_Immortality)(void*, void*, void*, void*);
 
-bool hook_Immortality(void* _this) {
-    return false;
+void* hook_Immortality(void* a1, void* a2, void* a3, void* a4) {
+    return nullptr; 
 }
 
 // Signatures
 const char* OREUI_PATTERN = "? ? ? D1 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 ? ? ? D5 FA 03 03 2A F7 03 02 2A ? ? ? F9 F4 03 01 AA";
 const char* EDU_MULTIPLAYER_PATTERN = "? ? ? D1 ? ? ? A9 ? ? ? F9 ? ? ? A9 ? ? ? 91 55 D0 3B D5 F3 03 00 AA ? ? ? F9 ? ? ? F8 ? ? ? F9 ? ? ? F9 ? ? ? 91 20 01 3F D6 ? ? ? F9 ? ? ? B4 ? ? ? 39";
-const char* IMMORTALITY_PATTERN = "E8 0F 19 FC FD 7B 01 A9 FC 6F 02 A9 FA 67 03 A9 F8 5F 04 A9 F6 57 05 A9";
+const char* IMMORTALITY_PATTERN = "E8 0F 19 FC FD 7B 01 A9 FC 6F 02 A9 FA 67 03 A9 F8 5F 04 A9 F6 57 05 A9 F4 4F 06 A9 FD 43 00 91 FF C3 0F D1 58 D0 3B D5 F3 03 02 AA 08 40 20 1E";
 
 static uintptr_t ResolveSignature(const char* sig) {
     std::vector<int> pattern;
