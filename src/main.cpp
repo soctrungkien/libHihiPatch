@@ -137,6 +137,7 @@ void* (*orig_setMaxPlayers)(void*, unsigned int);
 
 void* hook_setMaxPlayers(void* _this, unsigned int maxPlayers) {
     if (g_MaxPlayersEnabled) {
+        *(int*)((uintptr_t)_this + 4056) = g_MaxPlayersCount;
         maxPlayers = (unsigned int)g_MaxPlayersCount;
     }
     return orig_setMaxPlayers(_this, maxPlayers);
