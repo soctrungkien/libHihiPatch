@@ -158,7 +158,7 @@ bool hook_HotspotFix(void* _this) {
 const char* OREUI_PATTERN = "? ? ? D1 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 ? ? ? D5 FA 03 03 2A F7 03 02 2A ? ? ? F9 F4 03 01 AA";
 const char* EDU_MULTIPLAYER_PATTERN = "? ? ? D1 ? ? ? A9 ? ? ? F9 ? ? ? A9 ? ? ? 91 55 D0 3B D5 F3 03 00 AA ? ? ? F9 ? ? ? F8 ? ? ? F9 ? ? ? F9 ? ? ? 91 20 01 3F D6 ? ? ? F9 ? ? ? B4 ? ? ? 39";
 const char* IMMORTALITY_PATTERN = "E8 0F 19 FC FD 7B 01 A9 FC 6F 02 A9 FA 67 03 A9 F8 5F 04 A9 F6 57 05 A9 F4 4F 06 A9 FD 43 00 91 FF C3 0F D1 58 D0 3B D5 F3 03 02 AA 08 40 20 1E";
-const char* MAX_PLAYERS_PATTERN = "FF 83 02 D1 E8 23 00 FD FD 7B 05 A9 FA 67 06 A9 F8 5F 07 A9 F6 57 08 A9 F4 4F 09 A9 FD 43 01 91 57 D0 3B D5";
+const char* MAX_PLAYERS_PATTERN = "FF 83 02 D1 E8 23 00 FD FD 7B 05 A9 FA 67 06 A9 F8 5F 07 A9 F6 57 08 A9 F4 4F 09 A9 FD 43 01 91 57 D0 3B D5 D6 FA 03 B0 D6 42 00 91 E8 16 40 F9";
 const char* HOTSPOT_FIX_PATTERN = "60 96 40 F9 7F 96 00 F9 40 00 00 B4 41 8B F6 95"; 
 
 static uintptr_t ResolveSignature(const char* sig) {
