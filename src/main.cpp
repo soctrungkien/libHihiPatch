@@ -142,11 +142,24 @@ void* hook_setMaxPlayers(void* _this, unsigned int maxPlayers) {
     return orig_setMaxPlayers(_this, maxPlayers);
 }
 
+// Hotspot Multiplayer Fix hook from ApollonClient
+bool g_HotspotFixEnabled = true;
+
+bool (*orig_HotspotFix)(void*);
+
+bool hook_HotspotFix(void* _this) {
+    if (g_HotspotFixEnabled) {
+        return true;
+    }
+    return orig_HotspotFix(_this);
+}
+
 // Signatures
 const char* OREUI_PATTERN = "? ? ? D1 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 ? ? ? D5 FA 03 03 2A F7 03 02 2A ? ? ? F9 F4 03 01 AA";
 const char* EDU_MULTIPLAYER_PATTERN = "? ? ? D1 ? ? ? A9 ? ? ? F9 ? ? ? A9 ? ? ? 91 55 D0 3B D5 F3 03 00 AA ? ? ? F9 ? ? ? F8 ? ? ? F9 ? ? ? F9 ? ? ? 91 20 01 3F D6 ? ? ? F9 ? ? ? B4 ? ? ? 39";
 const char* IMMORTALITY_PATTERN = "E8 0F 19 FC FD 7B 01 A9 FC 6F 02 A9 FA 67 03 A9 F8 5F 04 A9 F6 57 05 A9 F4 4F 06 A9 FD 43 00 91 FF C3 0F D1 58 D0 3B D5 F3 03 02 AA 08 40 20 1E";
 const char* MAX_PLAYERS_PATTERN = "FF 83 02 D1 E8 23 00 FD FD 7B 05 A9 FA 67 06 A9 F8 5F 07 A9 F6 57 08 A9 F4 4F 09 A9 FD 43 01 91 57 D0 3B D5";
+const char* HOTSPOT_FIX_PATTERN = "60 96 40 F9 7F 96 00 F9 40 00 00 B4 41 8B F6 95"; 
 
 static uintptr_t ResolveSignature(const char* sig) {
     std::vector<int> pattern;
@@ -298,11 +311,38 @@ void* InjectionThread(void* arg) {
         saveJson(maxPlayersPath, newMpJson);
     }
 
+    // Hotspot Multiplayer Fix config
+    std::string hotspotFixPath = getConfigDir() + "HotspotFix.json";
+    nlohmann::ordered_json hotspotFixJson;
+    nlohmann::ordered_json newHfJson;
+    bool hfUpdated = false;
+
+    if (fs::exists(hotspotFixPath)) {
+        std::ifstream inFile(hotspotFixPath);
+        if (inFile.is_open()) {
+            inFile >> hotspotFixJson;
+            inFile.close();
+        }
+    }
+
+    if (hotspotFixJson.contains("Settings") && hotspotFixJson["Settings"].contains("enabled") && hotspotFixJson["Settings"]["enabled"].is_boolean()) {
+        g_HotspotFixEnabled = hotspotFixJson["Settings"]["enabled"];
+    } else {
+        hfUpdated = true;
+    }
+    
+    newHfJson["Settings"]["enabled"] = g_HotspotFixEnabled;
+
+    if (hfUpdated || !fs::exists(hotspotFixPath)) {
+        saveJson(hotspotFixPath, newHfJson);
+    }
+
     // Hook application loop
     bool oreUiHooked = false;
     bool noDisconnectHooked = false;
     bool immortalityHooked = false;
     bool maxPlayersHooked = false;
+    bool hotspotFixHooked = false;
 
     for (int attempts = 1; attempts <= 100; attempts++) {
         if (!oreUiHooked) {
@@ -353,7 +393,20 @@ void* InjectionThread(void* arg) {
             }
         }
 
-        if (oreUiHooked && noDisconnectHooked && immortalityHooked && maxPlayersHooked) break;
+        if (!hotspotFixHooked) {
+            if (g_HotspotFixEnabled) {
+                uintptr_t addr = ResolveSignature(HOTSPOT_FIX_PATTERN);
+                if (addr != 0) {
+                    LOGI("SUCCESS: Found HotspotFix signature! Applying DobbyHook...");
+                    DobbyHook((void*)addr, (void*)hook_HotspotFix, (void**)&orig_HotspotFix);
+                    hotspotFixHooked = true;
+                }
+            } else {
+                hotspotFixHooked = true;
+            }
+        }
+
+        if (oreUiHooked && noDisconnectHooked && immortalityHooked && maxPlayersHooked && hotspotFixHooked) break;
         usleep(50000); 
     }
 
@@ -361,6 +414,7 @@ void* InjectionThread(void* arg) {
     if (ndEnabled && !noDisconnectHooked) LOGE("FATAL: Could not find EduMultiplayer pattern in memory.");
     if (imEnabled && !immortalityHooked) LOGE("FATAL: Could not find Immortality pattern in memory.");
     if (g_MaxPlayersEnabled && !maxPlayersHooked) LOGE("FATAL: Could not find MaxPlayers pattern in memory.");
+    if (g_HotspotFixEnabled && !hotspotFixHooked) LOGE("FATAL: Could not find HotspotFix pattern in memory.");
 
     return nullptr;
 }
