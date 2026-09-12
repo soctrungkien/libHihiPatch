@@ -10,23 +10,10 @@
 #include <android/log.h>
 #include <dobby.h> 
 
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "MinecraftBedrockArchive", __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "MinecraftBedrockArchive", __VA_ARGS__)
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "HihiPatch", __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "HihiPatch", __VA_ARGS__)
 
 namespace fs = std::filesystem;
-
-class OreUIConfig {
-public:
-    void *mUnknown1;
-    void *mUnknown2;
-    std::function<bool()> mUnknown3;
-    std::function<bool()> mUnknown4;
-};
-
-class OreUi {
-public:
-    std::unordered_map<std::string, OreUIConfig> mConfigs;
-};
 
 #ifndef USE_PATH_MOD
 std::string getPackageName() {
@@ -42,10 +29,10 @@ std::string getPackageName() {
 std::string getConfigDir() {
     std::string primary = "";
 #ifdef USE_PATH_MOD
-    primary = "/sdcard/games/MinecraftBedrockArchive/";
+    primary = "/sdcard/MCFile/games/HihiPatch/";
 #else
     std::string pkgName = getPackageName();
-    primary = "/sdcard/Android/data/" + pkgName + "/files/mods/MinecraftBedrockArchive/";
+    primary = "/sdcard/Android/data/" + pkgName + "/files/mods/HihiPatch/";
 #endif
     std::error_code ec;
     fs::create_directories(primary, ec); 
@@ -65,56 +52,6 @@ void saveJson(const std::string &path, const nlohmann::ordered_json &j) {
     std::fclose(f);
 }
 
-// OreUI hook
-void (*orig_OreUi_init)(OreUi&, void*, void*, void*, void*, void*);
-
-void hook_OreUi_init(OreUi &a1, void *a2, void *a3, void *a4, void *a5, void *a6) {
-    orig_OreUi_init(a1, a2, a3, a4, a5, a6);
-
-    std::string filePath = getConfigDir() + "ForceCloseOreUI.json";
-    nlohmann::ordered_json oreUiJson;
-    bool updated = false;
-
-    if (fs::exists(filePath)) {
-        std::ifstream inFile(filePath);
-        if (inFile.is_open()) {
-            inFile >> oreUiJson;
-            inFile.close();
-        }
-    }
-
-    nlohmann::ordered_json newJson;
-    bool isEnabled = true;
-
-    if (oreUiJson.contains("Settings") && oreUiJson["Settings"].contains("enabled") && oreUiJson["Settings"]["enabled"].is_boolean()) {
-        isEnabled = oreUiJson["Settings"]["enabled"];
-    } else {
-        updated = true;
-    }
-    newJson["Settings"]["enabled"] = isEnabled;
-
-    for (auto &data : a1.mConfigs) {
-        bool value = false;
-        
-        if (oreUiJson.contains("Screens") && oreUiJson["Screens"].contains(data.first) && oreUiJson["Screens"][data.first].is_boolean()) {
-            value = oreUiJson["Screens"][data.first];
-        } else {
-            updated = true;
-        }
-
-        newJson["Screens"][data.first] = value;
-
-        if (isEnabled) {
-            data.second.mUnknown3 = [value]() { return value; };
-            data.second.mUnknown4 = [value]() { return value; };
-        }
-    }
-
-    if (updated || !fs::exists(filePath)) {
-        saveJson(filePath, newJson);
-    }
-}
-
 // NoDisconnect hook
 bool (*orig_isInEDUMultiplayerSession)(void*);
 
@@ -130,7 +67,6 @@ void* hook_Immortality(void* a1, void* a2, void* a3, void* a4) {
 }
 
 // Signatures
-const char* OREUI_PATTERN = "? ? ? D1 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 ? ? ? D5 FA 03 03 2A F7 03 02 2A ? ? ? F9 F4 03 01 AA";
 const char* EDU_MULTIPLAYER_PATTERN = "? ? ? D1 ? ? ? A9 ? ? ? F9 ? ? ? A9 ? ? ? 91 55 D0 3B D5 F3 03 00 AA ? ? ? F9 ? ? ? F8 ? ? ? F9 ? ? ? F9 ? ? ? 91 20 01 3F D6 ? ? ? F9 ? ? ? B4 ? ? ? 39";
 const char* IMMORTALITY_PATTERN = "E8 0F 19 FC FD 7B 01 A9 FC 6F 02 A9 FA 67 03 A9 F8 5F 04 A9 F6 57 05 A9 F4 4F 06 A9 FD 43 00 91 FF C3 0F D1 58 D0 3B D5 F3 03 02 AA 08 40 20 1E";
 const char* MAX_PLAYERS_PATTERN = "A8 9B 40 B9 09 F0 A7 52 6A 62 0C 91 69 3A 03 B9 68 12 03 B9 EA 0B 00 F9 40 01 00 AD 60 02 1A AD";
@@ -178,7 +114,7 @@ static uintptr_t ResolveSignature(const char* sig) {
 }
 
 void* InjectionThread(void* arg) {
-    LOGI("MinecraftBedrockArchive Turbo Thread started.");
+    LOGI("HihiPatch Turbo Thread started.");
 
     bool isLoaded = false;
     while (!isLoaded) {
@@ -288,21 +224,11 @@ void* InjectionThread(void* arg) {
     }
 
     // Hook application loop
-    bool oreUiHooked = false;
     bool noDisconnectHooked = false;
     bool immortalityHooked = false;
     bool maxPlayersHooked = false;
 
     for (int attempts = 1; attempts <= 100; attempts++) {
-        if (!oreUiHooked) {
-            uintptr_t addr = ResolveSignature(OREUI_PATTERN);
-            if (addr != 0) {
-                LOGI("SUCCESS: Found OreUI signature! Applying DobbyHook...");
-                DobbyHook((void*)addr, (void*)hook_OreUi_init, (void**)&orig_OreUi_init);
-                oreUiHooked = true;
-            }
-        }
-
         if (!noDisconnectHooked) {
             if (ndEnabled) {
                 uintptr_t addr = ResolveSignature(EDU_MULTIPLAYER_PATTERN);
@@ -345,11 +271,10 @@ void* InjectionThread(void* arg) {
             }
         }
 
-        if (oreUiHooked && noDisconnectHooked && immortalityHooked && maxPlayersHooked) break;
+        if (noDisconnectHooked && immortalityHooked && maxPlayersHooked) break;
         usleep(50000); 
     }
 
-    if (!oreUiHooked) LOGE("FATAL: Could not find OreUI pattern in memory.");
     if (ndEnabled && !noDisconnectHooked) LOGE("FATAL: Could not find EduMultiplayer pattern in memory.");
     if (imEnabled && !immortalityHooked) LOGE("FATAL: Could not find Immortality pattern in memory.");
     if (mpEnabled && mpValue != 5 && !maxPlayersHooked) LOGE("FATAL: Could not find MaxPlayers pattern in memory.");
@@ -358,7 +283,7 @@ void* InjectionThread(void* arg) {
 }
 
 __attribute__((constructor))
-void MinecraftBedrockArchive_Init() {
+void HihiPatch_Init() {
     pthread_t thread;
     pthread_create(&thread, nullptr, InjectionThread, nullptr);
     pthread_detach(thread);
