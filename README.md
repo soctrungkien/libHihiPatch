@@ -1,6 +1,6 @@
-# libMinecraftBedrockArchive
+# libHihiPatch
 
-A native C++ library for Minecraft Bedrock Edition Android designed to force-close the new OreUI interface and disable disconnecting when minimizing Minecraft.
+A native C++ library for Minecraft Bedrock Edition Android designed to disable disconnecting when minimizing Minecraft.
 
 This repo has been **completely rewritten** to strip out all [libpreloader.so](https://github.com/LiteLDev/preloader-android) dependencies. It is now a fully standalone `.so` library optimized for raw memory injection via the **Snail Method**.
 
@@ -15,9 +15,8 @@ This repo has been **completely rewritten** to strip out all [libpreloader.so](h
 ## Configuration
 
 Once injected, the mod will automatically generate configuration files at the following path:
-/storage/emulated/0/Android/data/PKG_NAME/files/mods/MinecraftBedrockArchive/
+/storage/emulated/0/Android/data/PKG_NAME/files/mods/HihiPatch/
 
-* **ForceCloseOreUI.json:** Controls OreUI screen toggles and the main module switch.
 * **NoDisconnect.json:** Controls the NoDisconnect feature switch.
 
 You can edit these JSON files to toggle specific options on or off.
@@ -29,7 +28,7 @@ This project uses `xmake` and has a fully automated GitHub Actions CI/CD pipelin
 ### Automated Build (Recommended)
 You do not need to install the Android NDK locally. 
 1. Fork or push your code to GitHub.
-2. The GitHub Actions workflow will automatically download the Dobby dependencies, compile the code for `arm64-v8a`, and upload the standalone `libMinecraftBedrockArchive.so` to the Actions tab.
+2. The GitHub Actions workflow will automatically download the Dobby dependencies, compile the code for `arm64-v8a`, and upload the standalone `libHihiPatch.so` to the Actions tab.
 
 ### Manual Local Build
 If you prefer to compile locally, ensure you have the Android NDK (r26b recommended) and `xmake` installed.
