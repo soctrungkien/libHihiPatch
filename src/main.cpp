@@ -257,8 +257,8 @@ void* InjectionThread(void* arg) {
     nlohmann::ordered_json maxPlayersJson;
     nlohmann::ordered_json newMpJson;
     bool mpUpdated = false;
-    bool mpEnabled = false;
-    int mpValue = 10; 
+    bool mpEnabled = true;
+    int mpValue = 5; 
 
     if (fs::exists(maxPlayersPath)) {
         std::ifstream inFile(maxPlayersPath);
@@ -291,7 +291,7 @@ void* InjectionThread(void* arg) {
     bool oreUiHooked = false;
     bool noDisconnectHooked = false;
     bool immortalityHooked = false;
-    bool maxPlayersPatched = false;
+    bool maxPlayersHooked = false;
 
     for (int attempts = 1; attempts <= 100; attempts++) {
         if (!oreUiHooked) {
@@ -329,30 +329,30 @@ void* InjectionThread(void* arg) {
             }
         }
 
-        if (!maxPlayersPatched) {
-            if (mpEnabled) {
+        if (!maxPlayersHooked) {
+            if (mpEnabled && mpValue != 5) {
                 uintptr_t addr = ResolveSignature(MAX_PLAYERS_PATTERN);
                 if (addr != 0) {
-                    LOGI("SUCCESS: Found MaxPlayers signature! Applying DobbyCodePatch...");
+                    LOGI("SUCCESS: Found MaxPlayers signature! Applying MaxPlayers Hook...");
                     
                     uint32_t patchInstruction = 0x52800008 | (mpValue << 5);
                     DobbyCodePatch((void*)addr, (uint8_t*)&patchInstruction, 4);
                     
-                    maxPlayersPatched = true;
+                    maxPlayersHooked = true;
                 }
             } else {
-                maxPlayersPatched = true;
+                maxPlayersHooked = true;
             }
         }
 
-        if (oreUiHooked && noDisconnectHooked && immortalityHooked && maxPlayersPatched) break;
+        if (oreUiHooked && noDisconnectHooked && immortalityHooked && maxPlayersHooked) break;
         usleep(50000); 
     }
 
     if (!oreUiHooked) LOGE("FATAL: Could not find OreUI pattern in memory.");
     if (ndEnabled && !noDisconnectHooked) LOGE("FATAL: Could not find EduMultiplayer pattern in memory.");
     if (imEnabled && !immortalityHooked) LOGE("FATAL: Could not find Immortality pattern in memory.");
-    if (mpEnabled && !maxPlayersPatched) LOGE("FATAL: Could not find MaxPlayers pattern in memory.");
+    if (mpEnabled && mpValue != 5 && !maxPlayersHooked) LOGE("FATAL: Could not find MaxPlayers pattern in memory.");
 
     return nullptr;
 }
