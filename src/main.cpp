@@ -129,38 +129,11 @@ void* hook_Immortality(void* a1, void* a2, void* a3, void* a4) {
     return nullptr; 
 }
 
-// Host Max Players hook from ApollonClient
-bool g_MaxPlayersEnabled = true;
-int g_MaxPlayersCount = 100;
-
-void* (*orig_setMaxPlayers)(void*, unsigned int);
-
-void* hook_setMaxPlayers(void* _this, unsigned int maxPlayers) {
-    if (g_MaxPlayersEnabled) {
-        *(int*)((uintptr_t)_this + 4056) = g_MaxPlayersCount;
-        maxPlayers = (unsigned int)g_MaxPlayersCount;
-    }
-    return orig_setMaxPlayers(_this, maxPlayers);
-}
-
-// Hotspot Multiplayer Fix hook from ApollonClient
-bool g_HotspotFixEnabled = true;
-
-bool (*orig_HotspotFix)(void*);
-
-bool hook_HotspotFix(void* _this) {
-    if (g_HotspotFixEnabled) {
-        return true;
-    }
-    return orig_HotspotFix(_this);
-}
-
 // Signatures
 const char* OREUI_PATTERN = "? ? ? D1 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 ? ? ? D5 FA 03 03 2A F7 03 02 2A ? ? ? F9 F4 03 01 AA";
 const char* EDU_MULTIPLAYER_PATTERN = "? ? ? D1 ? ? ? A9 ? ? ? F9 ? ? ? A9 ? ? ? 91 55 D0 3B D5 F3 03 00 AA ? ? ? F9 ? ? ? F8 ? ? ? F9 ? ? ? F9 ? ? ? 91 20 01 3F D6 ? ? ? F9 ? ? ? B4 ? ? ? 39";
 const char* IMMORTALITY_PATTERN = "E8 0F 19 FC FD 7B 01 A9 FC 6F 02 A9 FA 67 03 A9 F8 5F 04 A9 F6 57 05 A9 F4 4F 06 A9 FD 43 00 91 FF C3 0F D1 58 D0 3B D5 F3 03 02 AA 08 40 20 1E";
-const char* MAX_PLAYERS_PATTERN = "FF 83 02 D1 E8 23 00 FD FD 7B 05 A9 FA 67 06 A9 F8 5F 07 A9 F6 57 08 A9 F4 4F 09 A9 FD 43 01 91 57 D0 3B D5 D6 FA 03 B0 D6 42 00 91 E8 16 40 F9";
-const char* HOTSPOT_FIX_PATTERN = "60 96 40 F9 7F 96 00 F9 40 00 00 B4 41 8B F6 95"; 
+const char* MAX_PLAYERS_PATTERN = "A8 9B 40 B9 09 F0 A7 52 6A 62 0C 91 69 3A 03 B9 68 12 03 B9 EA 0B 00 F9 40 01 00 AD 60 02 1A AD";
 
 static uintptr_t ResolveSignature(const char* sig) {
     std::vector<int> pattern;
@@ -279,11 +252,13 @@ void* InjectionThread(void* arg) {
         saveJson(immortalityPath, newImJson);
     }
 
-    // Host Max Players config
-    std::string maxPlayersPath = getConfigDir() + "HostMaxPlayers.json";
+    // MaxPlayers config
+    std::string maxPlayersPath = getConfigDir() + "MaxPlayers.json";
     nlohmann::ordered_json maxPlayersJson;
     nlohmann::ordered_json newMpJson;
     bool mpUpdated = false;
+    bool mpEnabled = false;
+    int mpValue = 10; 
 
     if (fs::exists(maxPlayersPath)) {
         std::ifstream inFile(maxPlayersPath);
@@ -294,56 +269,29 @@ void* InjectionThread(void* arg) {
     }
 
     if (maxPlayersJson.contains("Settings") && maxPlayersJson["Settings"].contains("enabled") && maxPlayersJson["Settings"]["enabled"].is_boolean()) {
-        g_MaxPlayersEnabled = maxPlayersJson["Settings"]["enabled"];
+        mpEnabled = maxPlayersJson["Settings"]["enabled"];
     } else {
         mpUpdated = true;
     }
 
-    if (maxPlayersJson.contains("Settings") && maxPlayersJson["Settings"].contains("max_players") && maxPlayersJson["Settings"]["max_players"].is_number()) {
-        g_MaxPlayersCount = maxPlayersJson["Settings"]["max_players"];
+    if (maxPlayersJson.contains("Settings") && maxPlayersJson["Settings"].contains("value") && maxPlayersJson["Settings"]["value"].is_number()) {
+        mpValue = maxPlayersJson["Settings"]["value"];
     } else {
         mpUpdated = true;
     }
     
-    newMpJson["Settings"]["enabled"] = g_MaxPlayersEnabled;
-    newMpJson["Settings"]["max_players"] = g_MaxPlayersCount;
+    newMpJson["Settings"]["enabled"] = mpEnabled;
+    newMpJson["Settings"]["value"] = mpValue;
 
     if (mpUpdated || !fs::exists(maxPlayersPath)) {
         saveJson(maxPlayersPath, newMpJson);
-    }
-
-    // Hotspot Multiplayer Fix config
-    std::string hotspotFixPath = getConfigDir() + "HotspotFix.json";
-    nlohmann::ordered_json hotspotFixJson;
-    nlohmann::ordered_json newHfJson;
-    bool hfUpdated = false;
-
-    if (fs::exists(hotspotFixPath)) {
-        std::ifstream inFile(hotspotFixPath);
-        if (inFile.is_open()) {
-            inFile >> hotspotFixJson;
-            inFile.close();
-        }
-    }
-
-    if (hotspotFixJson.contains("Settings") && hotspotFixJson["Settings"].contains("enabled") && hotspotFixJson["Settings"]["enabled"].is_boolean()) {
-        g_HotspotFixEnabled = hotspotFixJson["Settings"]["enabled"];
-    } else {
-        hfUpdated = true;
-    }
-    
-    newHfJson["Settings"]["enabled"] = g_HotspotFixEnabled;
-
-    if (hfUpdated || !fs::exists(hotspotFixPath)) {
-        saveJson(hotspotFixPath, newHfJson);
     }
 
     // Hook application loop
     bool oreUiHooked = false;
     bool noDisconnectHooked = false;
     bool immortalityHooked = false;
-    bool maxPlayersHooked = false;
-    bool hotspotFixHooked = false;
+    bool maxPlayersPatched = false;
 
     for (int attempts = 1; attempts <= 100; attempts++) {
         if (!oreUiHooked) {
@@ -381,41 +329,30 @@ void* InjectionThread(void* arg) {
             }
         }
 
-        if (!maxPlayersHooked) {
-            if (g_MaxPlayersEnabled) {
+        if (!maxPlayersPatched) {
+            if (mpEnabled) {
                 uintptr_t addr = ResolveSignature(MAX_PLAYERS_PATTERN);
                 if (addr != 0) {
-                    LOGI("SUCCESS: Found MaxPlayers signature! Applying DobbyHook...");
-                    DobbyHook((void*)addr, (void*)hook_setMaxPlayers, (void**)&orig_setMaxPlayers);
-                    maxPlayersHooked = true;
+                    LOGI("SUCCESS: Found MaxPlayers signature! Applying DobbyCodePatch...");
+                    
+                    uint32_t patchInstruction = 0x52800008 | (mpValue << 5);
+                    DobbyCodePatch((void*)addr, (uint8_t*)&patchInstruction, 4);
+                    
+                    maxPlayersPatched = true;
                 }
             } else {
-                maxPlayersHooked = true;
+                maxPlayersPatched = true;
             }
         }
 
-        if (!hotspotFixHooked) {
-            if (g_HotspotFixEnabled) {
-                uintptr_t addr = ResolveSignature(HOTSPOT_FIX_PATTERN);
-                if (addr != 0) {
-                    LOGI("SUCCESS: Found HotspotFix signature! Applying DobbyHook...");
-                    DobbyHook((void*)addr, (void*)hook_HotspotFix, (void**)&orig_HotspotFix);
-                    hotspotFixHooked = true;
-                }
-            } else {
-                hotspotFixHooked = true;
-            }
-        }
-
-        if (oreUiHooked && noDisconnectHooked && immortalityHooked && maxPlayersHooked && hotspotFixHooked) break;
+        if (oreUiHooked && noDisconnectHooked && immortalityHooked && maxPlayersPatched) break;
         usleep(50000); 
     }
 
     if (!oreUiHooked) LOGE("FATAL: Could not find OreUI pattern in memory.");
     if (ndEnabled && !noDisconnectHooked) LOGE("FATAL: Could not find EduMultiplayer pattern in memory.");
     if (imEnabled && !immortalityHooked) LOGE("FATAL: Could not find Immortality pattern in memory.");
-    if (g_MaxPlayersEnabled && !maxPlayersHooked) LOGE("FATAL: Could not find MaxPlayers pattern in memory.");
-    if (g_HotspotFixEnabled && !hotspotFixHooked) LOGE("FATAL: Could not find HotspotFix pattern in memory.");
+    if (mpEnabled && !maxPlayersPatched) LOGE("FATAL: Could not find MaxPlayers pattern in memory.");
 
     return nullptr;
 }
